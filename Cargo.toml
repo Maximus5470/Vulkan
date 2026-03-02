@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "crates/vulkan-cli", 
+    "crates/vulkan-core", 
+    "crates/vulkan-server",
+]
+
+resolver = "2"
