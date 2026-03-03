@@ -1,0 +1,23 @@
+[
+  {
+    "language": "python",
+    "versions": [
+      "3.11.0",
+      "3.12.0",
+      "3.13.0"
+    ]
+  },
+  {
+    "language": "java",
+    "versions": [
+      "25",
+      "26"
+    ]
+  },
+  {
+    "language": "go",
+    "versions": [
+      "21"
+    ]
+  }
+]

@@ -9,6 +9,7 @@ pub fn run() -> Result<(), Box<dyn Error>>{
     match args.next().expect("msg").as_str(){
         "add" => commands::add::handle(&mut args),
         "remove" => commands::remove::handle(&mut args),
+        "list" => commands::list::handle(),
         _ => Err("Unknown command".into()),
     }
 }

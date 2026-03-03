@@ -5,7 +5,7 @@ mod commands;
 
 fn main() {
     if let Err(e) = cli::run(){
-        eprint!("Error: {}", e);
-        process::exit(1);
+        eprintln!("Error: {}", e);
+        process::exit(0);
     }
 }
