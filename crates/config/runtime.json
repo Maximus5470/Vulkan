@@ -4,10 +4,31 @@
     "versions": [
       "3.11",
       "3.9"
-    ]
+    ],
+    "source_file": "main.py",
+    "compile_cmd": null,
+    "run_cmd": [
+      "python",
+      "/app/main.py"
+    ],
+    "docker_image": "python:3.11-slim"
   },
   {
     "language": "java",
-    "versions": []
+    "versions": [
+      "25"
+    ],
+    "source_file": "Main.java",
+    "compile_cmd": [
+      "javac",
+      "/app/Main.java"
+    ],
+    "run_cmd": [
+      "java",
+      "-cp",
+      "/app",
+      "Main"
+    ],
+    "docker_image": "eclipse-temurin:25-jdk"
   }
 ]

@@ -3,49 +3,155 @@ use vulkan_core::LanguageConfig;
 
 use crate::commands::{load_registry, save_registry};
 
+/// Parse CLI arguments for the `add-language` command.
+///
+/// Usage:
+///   vulkan add-language \
+///     --language java \
+///     --versions 25 \
+///     --source-file Main.java \
+///     --compile "javac /app/Main.java" \
+///     --run "java -cp /app Main" \
+///     --docker-image "eclipse-temurin:25-jdk"
+///
+/// The `--compile` flag is optional (omit for interpreted languages).
+/// All other flags are required when adding a new language.
+///
+/// If the language already exists, only the version is appended.
 pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
-    let language = args.next().ok_or("Language not specified")?;
+    let mut language: Option<String> = None;
+    let mut versions: Vec<String> = vec![];
+    let mut source_file: Option<String> = None;
+    let mut compile_cmd: Option<Vec<String>> = None;
+    let mut run_cmd: Option<Vec<String>> = None;
+    let mut docker_image: Option<String> = None;
 
-    let mut versions = vec![];
-
-    loop {
-        let version = match args.next() {
-            Some(version) => version,
-            None => break,
-        };
-
-        versions.push(version);
+    // Parse named flags
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--language" => {
+                language = args.next();
+            }
+            "--versions" => {
+                // Consume all subsequent non-flag args as versions
+                while let Some(peek) = args.next() {
+                    if peek.starts_with("--") {
+                        // This is a new flag, handle it in-line
+                        match peek.as_str() {
+                            "--source-file" => source_file = args.next(),
+                            "--compile" => {
+                                if let Some(cmd_str) = args.next() {
+                                    compile_cmd = Some(
+                                        cmd_str.split_whitespace().map(|s| s.to_string()).collect(),
+                                    );
+                                }
+                            }
+                            "--run" => {
+                                if let Some(cmd_str) = args.next() {
+                                    run_cmd = Some(
+                                        cmd_str.split_whitespace().map(|s| s.to_string()).collect(),
+                                    );
+                                }
+                            }
+                            "--docker-image" => docker_image = args.next(),
+                            _ => {}
+                        }
+                        break;
+                    }
+                    versions.push(peek);
+                }
+            }
+            "--source-file" => {
+                source_file = args.next();
+            }
+            "--compile" => {
+                if let Some(cmd_str) = args.next() {
+                    compile_cmd = Some(cmd_str.split_whitespace().map(|s| s.to_string()).collect());
+                }
+            }
+            "--run" => {
+                if let Some(cmd_str) = args.next() {
+                    run_cmd = Some(cmd_str.split_whitespace().map(|s| s.to_string()).collect());
+                }
+            }
+            "--docker-image" => {
+                docker_image = args.next();
+            }
+            other => {
+                // For backward compat: treat positional args like old format
+                // (language then versions)
+                if language.is_none() {
+                    language = Some(other.to_string());
+                } else {
+                    versions.push(other.to_string());
+                }
+            }
+        }
     }
+
+    let language = language.ok_or("Language not specified. Use --language <name>")?;
 
     if versions.is_empty() {
-        eprintln!("Version not specified");
-        return Err("Version not specified".into());
+        return Err(
+            "At least one version required. Use --versions <version1> <version2> ...".into(),
+        );
     }
-
-    let lang_config = LanguageConfig { language, versions };
-
-    let language_display = lang_config.language.clone();
-    let versions_display = lang_config.versions.clone();
 
     let mut registry = load_registry()?;
 
+    // If language already exists, just add the version(s)
     if let Some(existing) = registry
         .runtimes
         .iter_mut()
-        .find(|c| c.language.eq_ignore_ascii_case(&lang_config.language))
+        .find(|c| c.language.eq_ignore_ascii_case(&language))
     {
-        existing.versions.extend(lang_config.versions);
+        existing.versions.extend(versions.clone());
         existing.versions.sort();
         existing.versions.dedup();
+
+        // Update optional fields if provided
+        if let Some(sf) = &source_file {
+            existing.source_file = sf.clone();
+        }
+        if compile_cmd.is_some() {
+            existing.compile_cmd = compile_cmd;
+        }
+        if let Some(rc) = run_cmd {
+            existing.run_cmd = rc;
+        }
+        if let Some(di) = &docker_image {
+            existing.docker_image = di.clone();
+        }
+
+        save_registry(&registry)?;
+        println!(
+            "Updated language '{}' with versions {:?}",
+            language, versions
+        );
     } else {
+        // New language — all fields required
+        let source_file =
+            source_file.ok_or("--source-file is required when adding a new language")?;
+        let run_cmd = run_cmd.ok_or("--run is required when adding a new language")?;
+        let docker_image =
+            docker_image.ok_or("--docker-image is required when adding a new language")?;
+
+        let lang_config = LanguageConfig {
+            language: language.clone(),
+            versions: versions.clone(),
+            source_file,
+            compile_cmd,
+            run_cmd,
+            docker_image,
+        };
+
         registry.add_runtime(lang_config);
+        save_registry(&registry)?;
+        println!(
+            "Successfully added language '{}' with versions {:?}",
+            language, versions
+        );
     }
 
-    save_registry(&registry)?;
-
-    println!(
-        "Successfully added language {} with versions {:?}",
-        language_display, versions_display
-    );
     Ok(())
 }
