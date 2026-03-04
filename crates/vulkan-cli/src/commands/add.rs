@@ -5,13 +5,9 @@ use crate::commands::{load_registry, save_registry};
 
 pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>>{
 
-    let language = match args.next(){
-        Some(language) => language,
-        None => {
-            eprintln!("Language not specified");
-            return Err("Language not specified".into());
-        }
-    };
+    let language = args.next().ok_or(
+        "Language not specified"
+    )?;
 
     let mut versions = vec![];
 

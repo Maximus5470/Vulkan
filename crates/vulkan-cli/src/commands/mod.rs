@@ -2,12 +2,13 @@ use std::{error::Error, fs, path::Path};
 use vulkan_core::models::RuntimeRegistry;
 
 pub mod add;
-pub mod remove;
+pub mod remove_lang;
 pub mod list;
+pub mod remove_version;
 
 const CONFIG_PATH: &str = "crates/config/runtime.json";
 
-fn load_registry() -> Result<RuntimeRegistry, Box<dyn Error>> {
+pub fn load_registry() -> Result<RuntimeRegistry, Box<dyn Error>> {
 	let config_path = Path::new(CONFIG_PATH);
 
 	if !config_path.exists() {
@@ -23,7 +24,7 @@ fn load_registry() -> Result<RuntimeRegistry, Box<dyn Error>> {
 	Ok(RuntimeRegistry { runtimes })
 }
 
-fn save_registry(registry: &RuntimeRegistry) -> Result<(), Box<dyn Error>> {
+pub fn save_registry(registry: &RuntimeRegistry) -> Result<(), Box<dyn Error>> {
 	let output = serde_json::to_string_pretty(&registry.runtimes)?;
 	fs::write(Path::new(CONFIG_PATH), output)?;
 	Ok(())

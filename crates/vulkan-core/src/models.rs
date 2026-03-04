@@ -12,6 +12,11 @@ pub struct RuntimeRegistry {
     pub runtimes: Vec<LanguageConfig>,
 }
 
+pub struct LanguageTemplate {
+    pub base_image: String,
+    pub workdir: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TestCase {
     pub testcase_id: String,
