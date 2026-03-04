@@ -18,7 +18,7 @@ pub fn python_content(version: &str) -> String {
 
 pub fn java_content(version: &str) -> String {
     format!(
-        "FROM eclipse-temurin:{}-jre\nWORKDIR /app\n",
+        "FROM eclipse-temurin:{}-jdk\nWORKDIR /app\n",
         version
     )
 }

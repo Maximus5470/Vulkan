@@ -2,7 +2,12 @@
   {
     "language": "python",
     "versions": [
-      "3.11"
+      "3.11",
+      "3.9"
     ]
+  },
+  {
+    "language": "java",
+    "versions": []
   }
 ]
