@@ -28,6 +28,9 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         return Err("Language not found".into());
     }
     commands::save_registry(&registry)?;
-    println!("Successfully removed version {} of language {}", version, language);
+    println!(
+        "Successfully removed version {} of language {}",
+        version, language
+    );
     Ok(())
 }

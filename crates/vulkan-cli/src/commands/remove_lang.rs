@@ -2,8 +2,8 @@ use std::{env, error::Error};
 
 use crate::commands::{load_registry, save_registry};
 
-pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>>{
-    let language = match args.next(){
+pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
+    let language = match args.next() {
         Some(language) => language,
         None => {
             eprintln!("Language not specified");

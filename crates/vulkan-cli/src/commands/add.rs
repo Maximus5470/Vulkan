@@ -3,11 +3,8 @@ use vulkan_core::LanguageConfig;
 
 use crate::commands::{load_registry, save_registry};
 
-pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>>{
-
-    let language = args.next().ok_or(
-        "Language not specified"
-    )?;
+pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
+    let language = args.next().ok_or("Language not specified")?;
 
     let mut versions = vec![];
 
@@ -25,10 +22,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>>{
         return Err("Version not specified".into());
     }
 
-    let lang_config = LanguageConfig{
-        language,
-        versions
-    };
+    let lang_config = LanguageConfig { language, versions };
 
     let language_display = lang_config.language.clone();
     let versions_display = lang_config.versions.clone();
@@ -49,6 +43,9 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>>{
 
     save_registry(&registry)?;
 
-    println!("Successfully added language {} with versions {:?}", language_display, versions_display);
+    println!(
+        "Successfully added language {} with versions {:?}",
+        language_display, versions_display
+    );
     Ok(())
 }

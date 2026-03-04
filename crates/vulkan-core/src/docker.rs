@@ -1,5 +1,10 @@
 use std::{
-    collections::HashSet, error::Error, fs::{self, File}, io::Write, path::PathBuf, process::Command
+    collections::HashSet,
+    error::Error,
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+    process::Command,
 };
 
 use crate::{dockerfile_content::default_dockerfile_content, models::RuntimeRegistry};
@@ -16,19 +21,14 @@ fn image_name(language: &str, version: &str) -> String {
 }
 
 fn dockerfile_dir(language: &str, version: &str) -> PathBuf {
-    PathBuf::from("dockerfiles")
-        .join(language)
-        .join(version)
+    PathBuf::from("dockerfiles").join(language).join(version)
 }
-
-
 
 fn ensure_dockerfile(
     language: &str,
     version: &str,
     dockerfile_contents: &str,
 ) -> Result<(), Box<dyn Error>> {
-
     validate_input(language)?;
     validate_input(version)?;
 
@@ -57,11 +57,7 @@ fn image_exists(language: &str, version: &str) -> bool {
     }
 }
 
-fn build_image(
-    language: &str,
-    version: &str,
-) -> Result<(), Box<dyn Error>> {
-
+fn build_image(language: &str, version: &str) -> Result<(), Box<dyn Error>> {
     validate_input(language)?;
     validate_input(version)?;
 
@@ -69,10 +65,7 @@ fn build_image(
     let dir = dockerfile_dir(language, version);
 
     if !dir.exists() {
-        return Err(format!(
-            "Dockerfile directory missing: {}",
-            dir.display()
-        ).into());
+        return Err(format!("Dockerfile directory missing: {}", dir.display()).into());
     }
 
     let status = Command::new("docker")
@@ -86,16 +79,10 @@ fn build_image(
     Ok(())
 }
 
-fn remove_image(
-    language: &str,
-    version: &str,
-) -> Result<(), Box<dyn Error>> {
-
+fn remove_image(language: &str, version: &str) -> Result<(), Box<dyn Error>> {
     let image = image_name(language, version);
 
-    let output = Command::new("docker")
-        .args(["rmi", &image])
-        .output()?;
+    let output = Command::new("docker").args(["rmi", &image]).output()?;
 
     if !output.status.success() {
         return Err(format!("Failed to remove Docker image: {}", image).into());
@@ -117,18 +104,13 @@ fn list_images() -> Result<Vec<String>, Box<dyn Error>> {
     Ok(stdout.lines().map(|line| line.to_string()).collect())
 }
 
-pub fn update_images(
-    registry: &RuntimeRegistry,
-) -> Result<(), Box<dyn Error>> {
+pub fn update_images(registry: &RuntimeRegistry) -> Result<(), Box<dyn Error>> {
     let existing_images = list_images()?;
 
     for runtime in &registry.runtimes {
         for version in &runtime.versions {
             if !image_exists(&runtime.language, version) {
-                println!(
-                    "Building Docker image for {} {}",
-                    runtime.language, version
-                );
+                println!("Building Docker image for {} {}", runtime.language, version);
 
                 let dockerfile_content = default_dockerfile_content(&runtime.language, version);
                 ensure_dockerfile(&runtime.language, version, &dockerfile_content)?;
@@ -136,7 +118,7 @@ pub fn update_images(
             }
         }
     }
-    
+
     // Build a set of expected image names based on the registry
     let mut expected_images = HashSet::new();
     for runtime in &registry.runtimes {
@@ -145,7 +127,7 @@ pub fn update_images(
             expected_images.insert(image);
         }
     }
-    
+
     // Remove images that are not in registry
     for existing_image in existing_images {
         if existing_image.starts_with("vulkan-") && !expected_images.contains(&existing_image) {

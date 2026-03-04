@@ -1,6 +1,6 @@
 use crate::models::{LanguageConfig, RuntimeRegistry};
 
-impl RuntimeRegistry{
+impl RuntimeRegistry {
     pub fn new() -> Self {
         RuntimeRegistry {
             runtimes: Vec::new(),
