@@ -26,67 +26,68 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
     let mut run_cmd: Option<Vec<String>> = None;
     let mut docker_image: Option<String> = None;
 
-    // Parse named flags
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
+    let all_args: Vec<String> = args.collect();
+    let mut i = 0;
+    while i < all_args.len() {
+        match all_args[i].as_str() {
             "--language" => {
-                language = args.next();
-            }
-            "--versions" => {
-                // Consume all subsequent non-flag args as versions
-                while let Some(peek) = args.next() {
-                    if peek.starts_with("--") {
-                        // This is a new flag, handle it in-line
-                        match peek.as_str() {
-                            "--source-file" => source_file = args.next(),
-                            "--compile" => {
-                                if let Some(cmd_str) = args.next() {
-                                    compile_cmd = Some(
-                                        cmd_str.split_whitespace().map(|s| s.to_string()).collect(),
-                                    );
-                                }
-                            }
-                            "--run" => {
-                                if let Some(cmd_str) = args.next() {
-                                    run_cmd = Some(
-                                        cmd_str.split_whitespace().map(|s| s.to_string()).collect(),
-                                    );
-                                }
-                            }
-                            "--docker-image" => docker_image = args.next(),
-                            _ => {}
-                        }
-                        break;
-                    }
-                    versions.push(peek);
+                i += 1;
+                if i < all_args.len() {
+                    language = Some(all_args[i].clone());
                 }
             }
+            "--versions" => {
+                i += 1;
+                while i < all_args.len() && !all_args[i].starts_with("--") {
+                    versions.push(all_args[i].clone());
+                    i += 1;
+                }
+                i -= 1; // backup to let the outer loop increment handle the next flag
+            }
             "--source-file" => {
-                source_file = args.next();
+                i += 1;
+                if i < all_args.len() {
+                    source_file = Some(all_args[i].clone());
+                }
             }
             "--compile" => {
-                if let Some(cmd_str) = args.next() {
-                    compile_cmd = Some(cmd_str.split_whitespace().map(|s| s.to_string()).collect());
+                i += 1;
+                if i < all_args.len() {
+                    compile_cmd = Some(
+                        all_args[i]
+                            .split_whitespace()
+                            .map(|s| s.to_string())
+                            .collect(),
+                    );
                 }
             }
             "--run" => {
-                if let Some(cmd_str) = args.next() {
-                    run_cmd = Some(cmd_str.split_whitespace().map(|s| s.to_string()).collect());
+                i += 1;
+                if i < all_args.len() {
+                    run_cmd = Some(
+                        all_args[i]
+                            .split_whitespace()
+                            .map(|s| s.to_string())
+                            .collect(),
+                    );
                 }
             }
             "--docker-image" => {
-                docker_image = args.next();
+                i += 1;
+                if i < all_args.len() {
+                    docker_image = Some(all_args[i].clone());
+                }
             }
-            other => {
-                // For backward compat: treat positional args like old format
-                // (language then versions)
+            _ => {
+                // Positional fallbacks for backward compatibility
                 if language.is_none() {
-                    language = Some(other.to_string());
+                    language = Some(all_args[i].clone());
                 } else {
-                    versions.push(other.to_string());
+                    versions.push(all_args[i].clone());
                 }
             }
         }
+        i += 1;
     }
 
     let language = language.ok_or("Language not specified. Use --language <name>")?;
@@ -99,7 +100,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
 
     let mut registry = load_registry()?;
 
-    // If language already exists, just add the version(s)
+    // If language already exists, just add/merge config
     if let Some(existing) = registry
         .runtimes
         .iter_mut()
@@ -110,17 +111,17 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         existing.versions.dedup();
 
         // Update optional fields if provided
-        if let Some(sf) = &source_file {
-            existing.source_file = sf.clone();
+        if let Some(sf) = source_file {
+            existing.source_file = sf;
         }
-        if compile_cmd.is_some() {
-            existing.compile_cmd = compile_cmd;
+        if let Some(cc) = compile_cmd {
+            existing.compile_cmd = Some(cc);
         }
         if let Some(rc) = run_cmd {
             existing.run_cmd = rc;
         }
-        if let Some(di) = &docker_image {
-            existing.docker_image = di.clone();
+        if let Some(di) = docker_image {
+            existing.docker_image = di;
         }
 
         save_registry(&registry)?;
@@ -129,7 +130,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
             language, versions
         );
     } else {
-        // New language — all fields required
+        // New language — all fields required except compile_cmd
         let source_file =
             source_file.ok_or("--source-file is required when adding a new language")?;
         let run_cmd = run_cmd.ok_or("--run is required when adding a new language")?;
@@ -142,7 +143,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
             source_file,
             compile_cmd,
             run_cmd,
-            docker_image,
+            docker_image: docker_image,
         };
 
         registry.add_runtime(lang_config);

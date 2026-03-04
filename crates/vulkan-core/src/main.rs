@@ -32,35 +32,22 @@ fn main() {
     // Load the registry dynamically from configuration
     let registry = load_registry_from_file();
 
-    println!(
-        "Loaded {} runtime(s) from {}",
-        registry.runtimes.len(),
-        RUNTIME_CONFIG_PATH
-    );
-    for rt in registry.list_runtimes() {
-        println!(
-            "  - {} (versions: {:?}, source: {}, docker: {})",
-            rt.language, rt.versions, rt.source_file, rt.docker_image
-        );
-    }
-
-    // Example job: Java "Hello Vulkan"
     let job = Job {
         job_id: uuid::Uuid::new_v4(),
         user_id: "test".to_string(),
-        language: "java".to_string(),
-        version: "25".to_string(),
-        code: r#"class Main { public static void main(String[] args) { System.out.println("Hello Vulkan"); } }"#.to_string(),
+        language: "python".to_string(),
+        version: "3.11".to_string(),
+        code: "import sys; print(f'Hello, {sys.stdin.read().strip()}!')".to_string(),
         testcases: vec![
             TestCase {
                 testcase_id: "1".to_string(),
-                input: "".to_string(),
-                expected_output: "Hello Vukan\n".to_string(),
+                input: "Vulkan".to_string(),
+                expected_output: "Hello, Vulkan!\n".to_string(),
             },
             TestCase {
                 testcase_id: "2".to_string(),
-                input: "".to_string(),
-                expected_output: "Hello Vulkan\n".to_string(),
+                input: "Antigravity".to_string(),
+                expected_output: "Hello, Antigravity!\n".to_string(),
             },
         ],
         attempts: 0,

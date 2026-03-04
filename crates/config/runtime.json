@@ -11,7 +11,7 @@
       "python",
       "/app/main.py"
     ],
-    "docker_image": "python:3.11-slim"
+    "docker_image": "python:{version}-slim"
   },
   {
     "language": "java",
@@ -29,6 +29,6 @@
       "/app",
       "Main"
     ],
-    "docker_image": "eclipse-temurin:25-jdk"
+    "docker_image": "eclipse-temurin:{version}-jdk"
   }
 ]

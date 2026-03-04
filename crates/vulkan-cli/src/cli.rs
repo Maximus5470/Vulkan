@@ -18,7 +18,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         "list" => commands::list::handle(),
         "update_images" => docker::update_images(&commands::load_registry()?),
         _ => Err(format!(
-            "Unknown command '{}'. Available: add-language, remove_lang, remove_version, list, update_images",
+            "Unknown command '{}'. Available: add-language, add, remove_lang, remove_version, list, update_images",
             command
         )
         .into()),

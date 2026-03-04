@@ -16,6 +16,12 @@ use crate::{
 
 // ───────────────────────────── Helpers ─────────────────────────────
 
+/// Resolve a docker_image template by replacing `{version}` with the actual version.
+/// e.g. "python:{version}-slim" + "3.11" → "python:3.11-slim"
+fn resolve_docker_image(template: &str, version: &str) -> String {
+    template.replace("{version}", version)
+}
+
 fn validate_input(value: &str) -> Result<(), Box<dyn Error>> {
     if value.contains("..") || value.contains('/') || value.contains('\\') {
         return Err("Invalid path component".into());
@@ -133,8 +139,9 @@ pub fn update_images(registry: &RuntimeRegistry) -> Result<(), Box<dyn Error>> {
             if !image_exists(&runtime.language, version) {
                 println!("Building Docker image for {} {}", runtime.language, version);
 
-                // Use the docker_image from config to build a generic Dockerfile
-                let dockerfile_content = generic_dockerfile_content(&runtime.docker_image);
+                // Resolve the docker_image template with this version
+                let resolved_image = resolve_docker_image(&runtime.docker_image, version);
+                let dockerfile_content = generic_dockerfile_content(&resolved_image);
                 ensure_dockerfile(&runtime.language, version, &dockerfile_content)?;
                 build_image(&runtime.language, version)?;
             }
