@@ -8,7 +8,6 @@ pub struct LanguageConfig {
     pub source_file: String,
     pub compile_cmd: Option<Vec<String>>,
     pub run_cmd: Vec<String>,
-    /// Docker base image to use for this language (e.g., "python:3.11-slim", "eclipse-temurin:25-jdk")
     pub docker_image: String,
 }
 

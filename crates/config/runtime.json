@@ -1,19 +1,5 @@
 [
   {
-    "language": "python",
-    "versions": [
-      "3.11",
-      "3.9"
-    ],
-    "source_file": "main.py",
-    "compile_cmd": null,
-    "run_cmd": [
-      "python",
-      "/app/main.py"
-    ],
-    "docker_image": "python:{version}-slim"
-  },
-  {
     "language": "java",
     "versions": [
       "25"
@@ -30,5 +16,19 @@
       "Main"
     ],
     "docker_image": "eclipse-temurin:{version}-jdk"
+  },
+  {
+    "language": "python",
+    "versions": [
+      "3.11",
+      "3.9"
+    ],
+    "source_file": "main.py",
+    "compile_cmd": null,
+    "run_cmd": [
+      "python",
+      "/app/main.py"
+    ],
+    "docker_image": "python:{version}-slim"
   }
 ]

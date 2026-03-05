@@ -1,10 +1,8 @@
 use std::{env, error::Error};
 use vulkan_core::LanguageConfig;
 
-use crate::commands::{load_registry, save_registry};
+use vulkan_core::registry;
 
-/// Parse CLI arguments for the `add-language` command.
-///
 /// Usage:
 ///   vulkan add-language \
 ///     --language java \
@@ -15,9 +13,6 @@ use crate::commands::{load_registry, save_registry};
 ///     --docker-image "eclipse-temurin:25-jdk"
 ///
 /// The `--compile` flag is optional (omit for interpreted languages).
-/// All other flags are required when adding a new language.
-///
-/// If the language already exists, only the version is appended.
 pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
     let mut language: Option<String> = None;
     let mut versions: Vec<String> = vec![];
@@ -42,7 +37,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
                     versions.push(all_args[i].clone());
                     i += 1;
                 }
-                i -= 1; // backup to let the outer loop increment handle the next flag
+                i -= 1;
             }
             "--source-file" => {
                 i += 1;
@@ -79,7 +74,6 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
                 }
             }
             _ => {
-                // Positional fallbacks for backward compatibility
                 if language.is_none() {
                     language = Some(all_args[i].clone());
                 } else {
@@ -98,7 +92,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         );
     }
 
-    let mut registry = load_registry()?;
+    let mut registry = registry::load_registry_from_file();
 
     // If language already exists, just add/merge config
     if let Some(existing) = registry
@@ -124,7 +118,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
             existing.docker_image = di;
         }
 
-        save_registry(&registry)?;
+        registry::save_registry(&registry)?;
         println!(
             "Updated language '{}' with versions {:?}",
             language, versions
@@ -147,7 +141,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         };
 
         registry.add_runtime(lang_config);
-        save_registry(&registry)?;
+        registry::save_registry(&registry)?;
         println!(
             "Successfully added language '{}' with versions {:?}",
             language, versions

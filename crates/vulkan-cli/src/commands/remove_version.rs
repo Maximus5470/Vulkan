@@ -1,12 +1,12 @@
 use std::{env, error::Error};
 
-use crate::commands;
+use vulkan_core::registry;
 
 pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
     let language = args.next().ok_or("Language not specified")?;
     let version = args.next().ok_or("Version not specified")?;
 
-    let mut registry = commands::load_registry()?;
+    let mut registry = registry::load_registry_from_file();
 
     if let Some(lang_config) = registry
         .runtimes
@@ -27,7 +27,7 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         eprintln!("Language {} not found", language);
         return Err("Language not found".into());
     }
-    commands::save_registry(&registry)?;
+    registry::save_registry(&registry)?;
     println!(
         "Successfully removed version {} of language {}",
         version, language

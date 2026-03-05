@@ -1,6 +1,6 @@
 use std::{env, error::Error};
 
-use crate::commands::{load_registry, save_registry};
+use vulkan_core::registry;
 
 pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
     let language = match args.next() {
@@ -11,9 +11,9 @@ pub fn handle(args: &mut env::Args) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let mut registry = load_registry()?;
+    let mut registry = registry::load_registry_from_file();
     registry.remove_runtime(&language);
-    save_registry(&registry)?;
+    registry::save_registry(&registry)?;
 
     println!("Successfully removed language {}", language);
     Ok(())
