@@ -1,2 +1,5 @@
 /target
 /dockerfiles
+.env
+*.log
+/config

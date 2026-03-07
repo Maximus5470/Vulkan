@@ -1,6 +1,6 @@
 use vulkan_core::{
     docker::execute_job,
-    models::{Job, TestCase},
+    models::{Job, JobSubmission, TestCase},
 };
 
 use vulkan_core::registry::load_registry_from_file;
@@ -36,12 +36,13 @@ fn main() {
         user_id: "test".to_string(),
         language: "java".to_string(),
         version: "25".to_string(),
+        submission_type: JobSubmission::Run,
         code: r#"class Main { public static void main(String[] args) { System.out.println("Hello Vulkan"); } }"#.to_string(),
         testcases: vec![
             TestCase {
                 testcase_id: "1".to_string(),
                 input: "".to_string(),
-                expected_output: "Hello Vukan\n".to_string(),
+                expected_output: "Hello Vulkan\n".to_string(),
             },
             TestCase {
                 testcase_id: "2".to_string(),

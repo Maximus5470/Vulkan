@@ -58,13 +58,14 @@ pub enum Priority {
     Low,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Job {
     pub job_id: Uuid,
     pub user_id: String,
     pub language: String,
     pub version: String,
     pub code: String,
+    pub submission_type: JobSubmission,
     pub testcases: Vec<TestCase>,
     pub attempts: u32,
     pub created_at: u64,
@@ -74,4 +75,10 @@ pub struct Job {
 pub enum JobStatus {
     Success,
     Failed,
+}
+
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq)]
+pub enum JobSubmission{
+    Run,
+    Submit
 }
