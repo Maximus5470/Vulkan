@@ -3,7 +3,6 @@ use std::{
     env,
     sync::{Arc, Mutex},
     thread,
-    time::Duration,
 };
 
 use redis::Client;
@@ -17,15 +16,6 @@ use crate::{
 impl WorkerPool {
     pub fn new(size: usize) -> Self {
         dotenvy::dotenv().ok();
-        
-        let scheduler = Arc::new(Mutex::new(MLFQ::new(
-            Client::open(
-                env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into()),
-            )
-            .unwrap()
-            .get_connection()
-            .unwrap()
-        )));
 
         let mut workers = Vec::with_capacity(size);
         for i in 0..size {
@@ -35,27 +25,48 @@ impl WorkerPool {
                 status: WorkerStatus::Idle,
             })));
         }
-        Self { workers, handles: Vec::new(), scheduler }
+        Self { workers, handles: Vec::new() }
     }
 
     pub fn start(&mut self) {
         dotenvy::dotenv().ok();
-        let scheduler_clone = Arc::clone(&self.scheduler);
-        
+        let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
+
         for worker_arc in &self.workers {
-            let scheduler = Arc::clone(&scheduler_clone);
             let worker = Arc::clone(worker_arc);
             let bias = worker.lock().unwrap().bias;
 
+            let conn = Client::open(redis_url.clone())
+                .unwrap()
+                .get_connection()
+                .unwrap();
+            let mut scheduler = MLFQ::new(conn);
+
             let handle = thread::spawn(move || {
                 loop {
-                    let mut sched = scheduler.lock().unwrap();
-                    if let Some(job) = sched.fetch_job(bias).unwrap() {
-                        drop(sched);
-                        worker.lock().unwrap().process_job(job);
-                    } else {
-                        drop(sched);
-                        thread::sleep(Duration::from_millis(500));
+                    match scheduler.fetch_job(bias) {
+                        Ok(Some(job)) => {
+                            let mut w = worker.lock().unwrap();
+                            w.status = WorkerStatus::Busy;
+                            let result= w.process_job(job);
+                            match result {
+                                Ok(job_result) => {
+                                    scheduler.push_result(&job_result, &serde_json::to_string(&job_result).unwrap()).unwrap();
+                                }
+                                Err(e) => {
+                                    eprintln!("Job processing error: {}", e);
+                                }
+                            }
+
+                            w.status = WorkerStatus::Idle;
+                            
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            worker.lock().unwrap().status = WorkerStatus::Offline;
+                            eprintln!("Worker error: {}", e);
+                            break;
+                        }
                     }
                 }
             });

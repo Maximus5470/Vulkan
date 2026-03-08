@@ -2,8 +2,6 @@ use std::{sync::{Arc, Mutex}, thread};
 
 use vulkan_core::models::Priority;
 
-use crate::scheduler::MLFQ;
-
 pub mod worker_pool;
 pub mod worker;
 
@@ -17,7 +15,6 @@ pub enum WorkerStatus{
 pub struct WorkerPool{
     pub workers: Vec<Arc<Mutex<Worker>>>,
     pub handles: Vec<thread::JoinHandle<()>>,
-    pub scheduler: Arc<Mutex<MLFQ>>,
 }
 
 #[derive(Debug)]

@@ -10,7 +10,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     let command = args
         .next()
-        .ok_or("No command specified. Available: add-language, add, remove_lang, remove_version, list, update_images")?;
+        .ok_or("No command specified. Available: add-language, add, remove_lang, remove_version, list, clear_redis, update_images")?;
 
     match command.as_str() {
         "add-language" | "add" => commands::add::handle(&mut args),
@@ -18,9 +18,10 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         "remove_version" => commands::remove_version::handle(&mut args),
         "add_version" => commands::add_version::handle(&mut args),
         "list" => commands::list::handle(),
+        "clear_redis" => commands::clear_redis::handle(),
         "update_images" => docker::update_images(&registry::load_registry_from_file()),
         _ => Err(format!(
-            "Unknown command '{}'. Available: add-language, add, remove_lang, remove_version, list, update_images",
+            "Unknown command '{}'. Available: add-language, add, remove_lang, remove_version, list, clear_redis, update_images",
             command
         )
         .into()),
