@@ -1,7 +1,7 @@
 use std::env;
 use std::fmt;
-use std::time::{SystemTime, UNIX_EPOCH};
 
+use redis::Connection;
 use redis::Script;
 use redis::ServerErrorKind;
 use redis::{Commands, ErrorKind, RedisError, RedisResult};
@@ -17,14 +17,13 @@ const LOW_QUEUE: &str = "vulkan:queue:low";
 const JOBS_HASH: &str = "vulkan:jobs";
 const RESULTS_HASH: &str = "vulkan:results";
 
-pub struct MLFQ {
-    pub redis: redis::Connection,
+pub struct Mlfq {
     pub high_limit: usize,
     pub medium_limit: usize,
     pub low_limit: usize,
 }
 
-impl fmt::Debug for MLFQ {
+impl fmt::Debug for Mlfq {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MLFQ")
             .field("high_limit", &self.high_limit)
@@ -34,17 +33,9 @@ impl fmt::Debug for MLFQ {
     }
 }
 
-fn current_time() -> f64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as f64
-}
-
-impl MLFQ {
-    pub fn new(redis: redis::Connection) -> Self {
+impl Mlfq {
+    pub fn new() -> Self {
         Self {
-            redis,
             high_limit: read_limit("HIGH_QUEUE_LIMIT", DEFAULT_HIGH_LIMIT),
             medium_limit: read_limit("MEDIUM_QUEUE_LIMIT", DEFAULT_MEDIUM_LIMIT),
             low_limit: read_limit("LOW_QUEUE_LIMIT", DEFAULT_LOW_LIMIT),
@@ -52,10 +43,14 @@ impl MLFQ {
     }
 
     fn determine_priority(submission_type: JobSubmission, testcase_count: usize) -> Priority {
+        let testcase_limit = env::var("TESTCASE_COUNT_LIMIT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(1000);
         match submission_type {
             JobSubmission::Run => Priority::High,
             JobSubmission::Submit => {
-                if testcase_count < 1000 {
+                if testcase_count < testcase_limit {
                     Priority::Medium
                 } else {
                     Priority::Low
@@ -64,10 +59,8 @@ impl MLFQ {
         }
     }
 
-    fn push_job_with_priority(&mut self, job_id: &str, priority: Priority) -> RedisResult<i64> {
+    fn push_job_with_priority(&self, conn: &mut Connection, job_id: &str, priority: Priority) -> RedisResult<i64> {
         let script = Script::new(include_str!("scheduler_push.lua"));
-
-        let time = current_time();
 
         let result = script
             .key(HIGH_QUEUE)
@@ -77,9 +70,8 @@ impl MLFQ {
             .arg(self.medium_limit)
             .arg(self.low_limit)
             .arg(job_id)
-            .arg(time)
             .arg(format!("{:?}", priority))
-            .invoke(&mut self.redis)?;
+            .invoke(conn)?;
 
         if result == 0 {
             return Err(RedisError::from((
@@ -91,35 +83,35 @@ impl MLFQ {
         Ok(result)
     }
 
-    pub fn push_job(&mut self, job: &Job) -> RedisResult<i64> {
+    pub fn push_job(&self, conn: &mut Connection, job: &Job) -> RedisResult<i64> {
         let job_id = job.job_id.to_string();
         let priority = Self::determine_priority(job.submission_type, job.testcases.len());
 
         let job_json = serde_json::to_string(job).map_err(|e| {
             RedisError::from((ErrorKind::Server(ServerErrorKind::ResponseError), "Failed to serialize job", e.to_string()))
         })?;
-        self.redis
+        conn
             .hset::<_, _, _, ()>(JOBS_HASH, &job_id, &job_json)?;
 
-        self.push_job_with_priority(&job_id, priority)
+        self.push_job_with_priority(conn, &job_id, priority)
     }
 
-    pub fn fetch_job(&mut self, bias: Priority) -> RedisResult<Option<Job>> {
+    pub fn fetch_job(&self, conn: &mut Connection, bias: Priority) -> RedisResult<Option<Job>> {
         let queues = match bias {
             Priority::High => [HIGH_QUEUE, MEDIUM_QUEUE, LOW_QUEUE],
             Priority::Medium => [MEDIUM_QUEUE, HIGH_QUEUE, LOW_QUEUE],
             Priority::Low => [LOW_QUEUE, MEDIUM_QUEUE, HIGH_QUEUE],
         };
 
-        let result: Option<(String, String, f64)> = redis::cmd("BZPOPMIN")
+        let result: Option<(String, String)> = redis::cmd("BRPOP")
             .arg(queues[0])
             .arg(queues[1])
             .arg(queues[2])
             .arg(0)
-            .query(&mut self.redis)?;
+            .query(conn)?;
 
-        if let Some((_, job_id, _)) = result {
-            let job_json: String = self.redis.hget(JOBS_HASH, &job_id)?;
+        if let Some((_, job_id)) = result {
+            let job_json: String = conn.hget(JOBS_HASH, &job_id)?;
             let job: Job = serde_json::from_str(&job_json).map_err(|e| {
                 RedisError::from((
                     ErrorKind::Server(ServerErrorKind::ResponseError),
@@ -133,9 +125,26 @@ impl MLFQ {
         Ok(None)
     }
 
-    pub fn push_result(&mut self, job: &JobResult, result: &str) -> RedisResult<()> {
+    pub fn push_result(&self, conn: &mut Connection, job: &JobResult, result: &str) -> RedisResult<()> {
         let key = format!("{}:{}", RESULTS_HASH, job.job_id);
-        self.redis.set_ex(key, result, 300)
+        conn.set_ex(key, result, 300)
+    }
+
+    pub fn get_result(&self, conn: &mut Connection, job_id: &str) -> RedisResult<Option<JobResult>> {
+        let key = format!("{}:{}", RESULTS_HASH, job_id);
+        let result_json: Option<String> = conn.get(key)?;
+        if let Some(json) = result_json {
+            let result: JobResult = serde_json::from_str(&json).map_err(|e| {
+                RedisError::from((
+                    ErrorKind::Server(ServerErrorKind::ResponseError),
+                    "Failed to deserialize job result",
+                    e.to_string(),
+                ))
+            })?;
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
     }
 }
 

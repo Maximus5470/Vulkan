@@ -6,9 +6,12 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 axum = "0.8"
-# vulkan-server = { path = "../vulkan-server" }
-vulkan-core ={ path="../vulkan-core" }
+vulkan-core = { path="../vulkan-core" }
+vulkan-server = { path = "../vulkan-server" }
 redis = { version = "1", features = ["tokio-comp", "connection-manager"] }
 prometheus = "0.13"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 dotenv = "0.15"
+uuid = { version = "1", features = ["serde", "v4"] }
+lazy_static = "1.4"

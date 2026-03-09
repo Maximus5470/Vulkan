@@ -1,8 +1,8 @@
-pub mod worker;
-pub mod worker_pool;
-
 use std::{sync::{Arc, Mutex}, thread};
 use vulkan_core::Priority;
+
+pub mod worker_pool;
+pub mod worker;
 
 #[derive(Debug, Clone, Copy)]
 pub enum WorkerStatus{

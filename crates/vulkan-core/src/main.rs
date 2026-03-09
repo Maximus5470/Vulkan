@@ -33,7 +33,6 @@ fn main() {
 
     let job = Job {
         job_id: uuid::Uuid::new_v4(),
-        user_id: "test".to_string(),
         language: "java".to_string(),
         version: "25".to_string(),
         submission_type: JobSubmission::Run,
@@ -50,8 +49,6 @@ fn main() {
                 expected_output: "Hello Vulkan\n".to_string(),
             },
         ],
-        attempts: 0,
-        created_at: 0,
     };
 
     match execute_job(&job, &registry) {

@@ -1,6 +1,5 @@
 pub mod docker;
 pub mod dockerfile_content;
-pub mod models;
 pub mod registry;
 
 use serde::{Deserialize, Serialize};
@@ -87,19 +86,19 @@ pub struct TestcaseResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SubmitJobRequest {
     pub language: String,
+    pub version: String,
     pub code: String,
+    pub submission_type: JobSubmission,
     pub testcases: Vec<TestCase>,
-    pub user_timeout_ms: u64,
-    pub memory_limit_mb: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JobResult {
     pub job_id: Uuid,
     pub status: JobStatus,
+    pub stderr: String,
     pub execution_time_ms: u64,
     pub testcases: Vec<TestcaseResult>,
-    pub stderr: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq, PartialEq)]
@@ -112,14 +111,11 @@ pub enum Priority {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Job {
     pub job_id: Uuid,
-    pub user_id: String,
     pub language: String,
     pub version: String,
     pub code: String,
     pub submission_type: JobSubmission,
     pub testcases: Vec<TestCase>,
-    pub attempts: u32,
-    pub created_at: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
