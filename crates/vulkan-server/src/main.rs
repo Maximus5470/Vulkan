@@ -13,4 +13,10 @@ fn main() {
     let mut worker_pool = WorkerPool::new(worker_count);
     println!("Worker pool initialized with {} workers.", worker_pool.workers.len());
     worker_pool.start();
+
+    for handle in worker_pool.handles {
+        if let Err(e) = handle.join() {
+            eprintln!("Worker thread panicked: {:?}", e);
+        }
+    }
 }

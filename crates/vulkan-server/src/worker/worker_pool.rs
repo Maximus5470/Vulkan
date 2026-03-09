@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use redis::Client;
+use redis::{Client, Connection};
 use vulkan_core::Priority;
 
 use crate::{
@@ -35,37 +35,67 @@ impl WorkerPool {
         for worker_arc in &self.workers {
             let worker = Arc::clone(worker_arc);
             let bias = worker.lock().unwrap().bias;
-
-            let mut conn = Client::open(redis_url.clone())
-                .unwrap()
-                .get_connection()
-                .unwrap();
+            let redis_url = redis_url.clone();
             let scheduler = Mlfq::new();
 
             let handle = thread::spawn(move || {
+                // Retry connecting until successful
+                let make_conn = |url: &str| -> Connection {
+                    loop {
+                        match Client::open(url).and_then(|c| c.get_connection()) {
+                            Ok(conn) => {
+                                eprintln!("Worker connected to Redis");
+                                return conn;
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to connect to Redis, retrying in 2s: {}", e);
+                            }
+                        }
+                    }
+                };
+
+                let mut conn = make_conn(&redis_url);
+
                 loop {
                     match scheduler.fetch_job(&mut conn, bias) {
                         Ok(Some(job)) => {
-                            let mut w = worker.lock().unwrap();
-                            w.status = WorkerStatus::Busy;
-                            let result= w.process_job(job);
+                            worker.lock().unwrap().status = WorkerStatus::Busy;
+
+                            let result = {
+                                let w = worker.lock().unwrap();
+                                w.process_job(job)
+                            };
+
                             match result {
                                 Ok(job_result) => {
-                                    scheduler.push_result(&mut conn, &job_result, &serde_json::to_string(&job_result).unwrap()).unwrap();
+                                    let payload = match serde_json::to_string(&job_result) {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            eprintln!("Serialization error: {}", e);
+                                            worker.lock().unwrap().status = WorkerStatus::Idle;
+                                            continue;
+                                        }
+                                    };
+                                    if let Err(e) = scheduler.push_result(&mut conn, &job_result, &payload) {
+                                        eprintln!("Failed to push result: {}", e);
+                                    }
                                 }
                                 Err(e) => {
                                     eprintln!("Job processing error: {}", e);
                                 }
                             }
 
-                            w.status = WorkerStatus::Idle;
-                            
+                            worker.lock().unwrap().status = WorkerStatus::Idle;
                         }
-                        Ok(None) => {}
+                        Ok(None) => {
+                            thread::sleep(std::time::Duration::from_millis(1));
+                        }
                         Err(e) => {
+                            eprintln!("Worker error: {}, reconnecting...", e);
                             worker.lock().unwrap().status = WorkerStatus::Offline;
-                            eprintln!("Worker error: {}", e);
-                            break;
+                            thread::sleep(std::time::Duration::from_secs(2));
+                            conn = make_conn(&redis_url);  // reconnect
+                            worker.lock().unwrap().status = WorkerStatus::Idle;
                         }
                     }
                 }
