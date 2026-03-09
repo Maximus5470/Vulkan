@@ -1,6 +1,6 @@
 use vulkan_core::{
     docker::execute_job,
-    models::{Job, JobSubmission, TestCase},
+    {Job, JobSubmission, TestCase},
 };
 
 use vulkan_core::registry::load_registry_from_file;

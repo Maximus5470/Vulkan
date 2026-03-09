@@ -10,8 +10,7 @@ use std::{
 };
 
 use crate::{
-    dockerfile_content::generic_dockerfile_content,
-    models::{Job, JobResult, JobStatus, RuntimeRegistry, TestcaseResult},
+    Job, JobResult, JobStatus, LanguageConfig, RuntimeRegistry, TestcaseResult, dockerfile_content::generic_dockerfile_content
 };
 
 fn resolve_docker_image(template: &str, version: &str) -> String {
@@ -293,7 +292,7 @@ pub fn execute_job(job: &Job, registry: &RuntimeRegistry) -> Result<JobResult, B
 
 fn execute_in_container(
     job: &Job,
-    runtime: &crate::models::LanguageConfig,
+    runtime: &LanguageConfig,
     container_id: &str,
 ) -> Result<(Vec<TestcaseResult>, String), Box<dyn Error>> {
     let mut global_stderr = String::new();

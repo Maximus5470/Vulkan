@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use redis::Script;
 use redis::ServerErrorKind;
 use redis::{Commands, ErrorKind, RedisError, RedisResult};
-use vulkan_core::models::{Job, JobResult, JobSubmission, Priority};
+use vulkan_core::{Job, JobResult, JobSubmission, Priority};
 
 const DEFAULT_HIGH_LIMIT: usize = 100;
 const DEFAULT_MEDIUM_LIMIT: usize = 500;

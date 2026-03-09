@@ -1,8 +1,8 @@
-mod worker;
 mod scheduler;
 use std::env;
 
 use crate::worker::WorkerPool;
+mod worker;
 
 fn main() {
     dotenvy::dotenv().ok();

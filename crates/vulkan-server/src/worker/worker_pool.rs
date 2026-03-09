@@ -6,7 +6,7 @@ use std::{
 };
 
 use redis::Client;
-use vulkan_core::models::Priority;
+use vulkan_core::Priority;
 
 use crate::{
     scheduler::MLFQ,

@@ -11,7 +11,7 @@ pub mod metrics;
 
 #[derive(Clone)]
 pub struct AppState{
-    uptime: SystemTime,
-    redis: ConnectionManager,
-    runtimes: Arc<RuntimeRegistry>
+    pub uptime: SystemTime,
+    pub redis: ConnectionManager,
+    pub runtimes: Arc<RuntimeRegistry>
 }

@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use vulkan_core::{docker::execute_job, models::{Job, JobResult}, registry::load_registry_from_file};
+use vulkan_core::{Job, JobResult, docker::execute_job, registry::load_registry_from_file};
 
 use crate::worker::Worker;
 
