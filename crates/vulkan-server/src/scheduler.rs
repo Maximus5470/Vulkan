@@ -3,6 +3,7 @@ use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use redis::Script;
+use redis::ServerErrorKind;
 use redis::{Commands, ErrorKind, RedisError, RedisResult};
 use vulkan_core::models::{Job, JobResult, JobSubmission, Priority};
 
@@ -82,7 +83,7 @@ impl MLFQ {
 
         if result == 0 {
             return Err(RedisError::from((
-                ErrorKind::ResponseError,
+                ErrorKind::Server(ServerErrorKind::ResponseError),
                 "All queues full",
             )));
         }
@@ -95,7 +96,7 @@ impl MLFQ {
         let priority = Self::determine_priority(job.submission_type, job.testcases.len());
 
         let job_json = serde_json::to_string(job).map_err(|e| {
-            RedisError::from((ErrorKind::IoError, "Failed to serialize job", e.to_string()))
+            RedisError::from((ErrorKind::Server(ServerErrorKind::ResponseError), "Failed to serialize job", e.to_string()))
         })?;
         self.redis
             .hset::<_, _, _, ()>(JOBS_HASH, &job_id, &job_json)?;
@@ -121,7 +122,7 @@ impl MLFQ {
             let job_json: String = self.redis.hget(JOBS_HASH, &job_id)?;
             let job: Job = serde_json::from_str(&job_json).map_err(|e| {
                 RedisError::from((
-                    ErrorKind::IoError,
+                    ErrorKind::Server(ServerErrorKind::ResponseError),
                     "Failed to deserialize job",
                     e.to_string(),
                 ))

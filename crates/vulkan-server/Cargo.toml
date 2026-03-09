@@ -6,7 +6,5 @@ edition = "2024"
 [dependencies]
 vulkan-core = { path = "../vulkan-core" }
 dotenvy = "0.15"
-redis = "0.22"
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-axum = "0.5"
+redis = "1"
+serde_json = "1"

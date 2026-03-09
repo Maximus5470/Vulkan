@@ -1,5 +1,5 @@
 [workspace]
-members = [
+members = [ "crates/vulkan-api",
     "crates/vulkan-cli", 
     "crates/vulkan-core", 
     "crates/vulkan-server",

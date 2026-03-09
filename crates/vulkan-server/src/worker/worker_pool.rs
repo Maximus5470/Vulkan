@@ -16,7 +16,7 @@ use crate::{
 impl WorkerPool {
     pub fn new(size: usize) -> Self {
         dotenvy::dotenv().ok();
-
+        assert!(size > 0, "Worker pool size must be greater than 0");
         let mut workers = Vec::with_capacity(size);
         for i in 0..size {
             workers.push(Arc::new(Mutex::new(Worker {
