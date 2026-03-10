@@ -2,6 +2,8 @@ pub mod docker;
 pub mod dockerfile_content;
 pub mod registry;
 
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -96,6 +98,7 @@ pub struct SubmitJobRequest {
 pub struct JobResult {
     pub job_id: Uuid,
     pub status: JobStatus,
+    pub stdout: Option<String>,
     pub stderr: String,
     pub execution_time_ms: u64,
     pub testcases: Vec<TestcaseResult>,
@@ -106,6 +109,17 @@ pub enum Priority {
     High,
     Medium,
     Low,
+}
+
+impl Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Priority::High => "high",
+            Priority::Medium => "medium",
+            Priority::Low => "low",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

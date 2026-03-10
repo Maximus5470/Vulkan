@@ -5,8 +5,8 @@ use std::{
     thread,
 };
 
-use redis::{Client, Connection};
-use vulkan_core::Priority;
+use redis::Client;
+use vulkan_core::{Priority, RuntimeRegistry};
 
 use crate::{
     scheduler::Mlfq,
@@ -14,18 +14,19 @@ use crate::{
 };
 
 impl WorkerPool {
-    pub fn new(size: usize) -> Self {
+    pub fn new(size: usize, registry: Arc<RuntimeRegistry>) -> Self {
         dotenvy::dotenv().ok();
         assert!(size > 0, "Worker pool size must be greater than 0");
-        let mut workers: Vec<Arc<Mutex<Worker>>> = Vec::with_capacity(size);
+        let mut workers = Vec::with_capacity(size);
         for i in 0..size {
             workers.push(Arc::new(Mutex::new(Worker {
                 id: i,
                 bias: Priority::Medium,
                 status: WorkerStatus::Idle,
+                registry: Arc::clone(&registry)
             })));
         }
-        Self { workers, handles: Vec::new() }
+        Self { workers, handles: Vec::new(), registry }
     }
 
     pub fn start(&mut self) {
@@ -35,67 +36,37 @@ impl WorkerPool {
         for worker_arc in &self.workers {
             let worker = Arc::clone(worker_arc);
             let bias = worker.lock().unwrap().bias;
-            let redis_url = redis_url.clone();
+
+            let mut conn = Client::open(redis_url.clone())
+                .unwrap()
+                .get_connection()
+                .unwrap();
             let scheduler = Mlfq::new();
 
             let handle = thread::spawn(move || {
-                // Retry connecting until successful
-                let make_conn = |url: &str| -> Connection {
-                    loop {
-                        match Client::open(url).and_then(|c| c.get_connection()) {
-                            Ok(conn) => {
-                                eprintln!("Worker connected to Redis");
-                                return conn;
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to connect to Redis, retrying in 2s: {}", e);
-                            }
-                        }
-                    }
-                };
-
-                let mut conn = make_conn(&redis_url);
-
                 loop {
                     match scheduler.fetch_job(&mut conn, bias) {
                         Ok(Some(job)) => {
-                            worker.lock().unwrap().status = WorkerStatus::Busy;
-
-                            let result = {
-                                let w = worker.lock().unwrap();
-                                w.process_job(job)
-                            };
-
+                            let mut w = worker.lock().unwrap();
+                            w.status = WorkerStatus::Busy;
+                            let result= w.process_job(job);
                             match result {
                                 Ok(job_result) => {
-                                    let payload = match serde_json::to_string(&job_result) {
-                                        Ok(p) => p,
-                                        Err(e) => {
-                                            eprintln!("Serialization error: {}", e);
-                                            worker.lock().unwrap().status = WorkerStatus::Idle;
-                                            continue;
-                                        }
-                                    };
-                                    if let Err(e) = scheduler.push_result(&mut conn, &job_result, &payload) {
-                                        eprintln!("Failed to push result: {}", e);
-                                    }
+                                    scheduler.push_result(&mut conn, &job_result, &serde_json::to_string(&job_result).unwrap()).unwrap();
                                 }
                                 Err(e) => {
                                     eprintln!("Job processing error: {}", e);
                                 }
                             }
 
-                            worker.lock().unwrap().status = WorkerStatus::Idle;
+                            w.status = WorkerStatus::Idle;
+                            
                         }
-                        Ok(None) => {
-                            thread::sleep(std::time::Duration::from_millis(1));
-                        }
+                        Ok(None) => {}
                         Err(e) => {
-                            eprintln!("Worker error: {}, reconnecting...", e);
                             worker.lock().unwrap().status = WorkerStatus::Offline;
-                            thread::sleep(std::time::Duration::from_secs(2));
-                            conn = make_conn(&redis_url);  // reconnect
-                            worker.lock().unwrap().status = WorkerStatus::Idle;
+                            eprintln!("Worker error: {}", e);
+                            break;
                         }
                     }
                 }

@@ -267,14 +267,24 @@ pub fn execute_job(job: &Job, registry: &RuntimeRegistry) -> Result<JobResult, B
     let duration = start.elapsed().as_millis() as u64;
 
     match result {
-        Ok((testcase_results, global_stderr)) => {
-            let all_passed =
-                !testcase_results.is_empty() && testcase_results.iter().all(|tc| tc.passed);
-            let status = if all_passed { JobStatus::Success } else { JobStatus::Failed };
+        Ok((testcase_results, run_stdout, run_success, global_stderr)) => {
+            let status = match job.submission_type {
+                crate::JobSubmission::Run => {
+                    if run_success { JobStatus::Success } else { JobStatus::Failed }
+                }
+                crate::JobSubmission::Submit => {
+                    if !testcase_results.is_empty() && testcase_results.iter().all(|tc| tc.passed) {
+                        JobStatus::Success
+                    } else {
+                        JobStatus::Failed
+                    }
+                }
+            };
 
             Ok(JobResult {
                 job_id: job.job_id,
                 status,
+                stdout: run_stdout,
                 execution_time_ms: duration,
                 testcases: testcase_results,
                 stderr: global_stderr,
@@ -283,6 +293,7 @@ pub fn execute_job(job: &Job, registry: &RuntimeRegistry) -> Result<JobResult, B
         Err(e) => Ok(JobResult {
             job_id: job.job_id,
             status: JobStatus::Failed,
+            stdout: None,
             execution_time_ms: duration,
             testcases: vec![],
             stderr: e.to_string(),
@@ -294,7 +305,7 @@ fn execute_in_container(
     job: &Job,
     runtime: &LanguageConfig,
     container_id: &str,
-) -> Result<(Vec<TestcaseResult>, String), Box<dyn Error>> {
+) -> Result<(Vec<TestcaseResult>, Option<String>, bool, String), Box<dyn Error>> {
     let mut global_stderr = String::new();
 
     if let Some(compile_cmd) = &runtime.compile_cmd {
@@ -311,6 +322,16 @@ fn execute_in_container(
     }
 
     let mut testcase_results = Vec::new();
+
+    if job.testcases.is_empty() {
+        // Run mode: execute once with no stdin, use exit code for pass/fail
+        let (exit_code, stdout, stderr) =
+            exec_in_container(container_id, &runtime.run_cmd, None)?;
+        if !stderr.is_empty() {
+            global_stderr = stderr.clone();
+        }
+        return Ok((vec![], Some(normalize_output(&stdout)), exit_code == 0, global_stderr));
+    }
 
     for testcase in &job.testcases {
         let tc_start = Instant::now();
@@ -340,5 +361,5 @@ fn execute_in_container(
         });
     }
 
-    Ok((testcase_results, global_stderr))
+    Ok((testcase_results, None, true, global_stderr))
 }

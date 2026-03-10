@@ -42,6 +42,7 @@ impl Mlfq {
         }
     }
 
+       #[allow(dead_code)]
     fn determine_priority(submission_type: JobSubmission, testcase_count: usize) -> Priority {
         let testcase_limit = env::var("TESTCASE_COUNT_LIMIT")
             .ok()
@@ -58,7 +59,7 @@ impl Mlfq {
             }
         }
     }
-
+    #[allow(dead_code)]
     fn push_job_with_priority(&self, conn: &mut Connection, job_id: &str, priority: Priority) -> RedisResult<i64> {
         let script = Script::new(include_str!("scheduler_push.lua"));
 
@@ -83,6 +84,7 @@ impl Mlfq {
         Ok(result)
     }
 
+    #[allow(dead_code)]
     pub fn push_job(&self, conn: &mut Connection, job: &Job) -> RedisResult<i64> {
         let job_id = job.job_id.to_string();
         let priority = Self::determine_priority(job.submission_type, job.testcases.len());
@@ -130,6 +132,7 @@ impl Mlfq {
         conn.set_ex(key, result, 300)
     }
 
+   #[allow(dead_code)]
     pub fn get_result(&self, conn: &mut Connection, job_id: &str) -> RedisResult<Option<JobResult>> {
         let key = format!("{}:{}", RESULTS_HASH, job_id);
         let result_json: Option<String> = conn.get(key)?;
