@@ -1,4 +1,4 @@
-use std::{sync::{Arc, Mutex}, thread};
+use std::{sync::Arc, thread};
 use vulkan_core::{Priority, RuntimeRegistry};
 
 pub mod worker_pool;
@@ -12,7 +12,7 @@ pub enum WorkerStatus{
 }
 
 pub struct WorkerPool{
-    pub workers: Vec<Arc<Mutex<Worker>>>,
+    pub workers: Vec<Worker>,
     pub handles: Vec<thread::JoinHandle<()>>,
     #[allow(dead_code)]
     pub registry: Arc<RuntimeRegistry>

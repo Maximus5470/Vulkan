@@ -1,7 +1,7 @@
 use dotenvy;
 use std::{
     env,
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
 };
 
@@ -17,25 +17,77 @@ impl WorkerPool {
     pub fn new(size: usize, registry: Arc<RuntimeRegistry>) -> Self {
         dotenvy::dotenv().ok();
         assert!(size > 0, "Worker pool size must be greater than 0");
-        let mut workers = Vec::with_capacity(size);
-        for i in 0..size {
-            workers.push(Arc::new(Mutex::new(Worker {
-                id: i,
+
+        let high_count = env::var("HIGH_QUEUE_WORKER_COUNT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(0);
+        let medium_count = env::var("MEDIUM_QUEUE_WORKER_COUNT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(size);
+        let low_count = env::var("LOW_QUEUE_WORKER_COUNT")
+            .ok()
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or(0);
+
+        let total_from_split = high_count + medium_count + low_count;
+        let (high_count, medium_count, low_count) = if total_from_split == 0 {
+            // Backward-compatible fallback when queue-specific values are absent.
+            (0, size, 0)
+        } else {
+            if total_from_split != size {
+                eprintln!(
+                    "WORKER_POOL_SIZE ({}) does not match HIGH/MEDIUM/LOW split ({}). Using split-defined total.",
+                    size, total_from_split
+                );
+            }
+            (high_count, medium_count, low_count)
+        };
+
+        let mut workers = Vec::with_capacity(high_count + medium_count + low_count);
+        let mut id = 0usize;
+
+        for _ in 0..high_count {
+            workers.push(Worker {
+                id,
+                bias: Priority::High,
+                status: WorkerStatus::Idle,
+                registry: Arc::clone(&registry),
+            });
+            id += 1;
+        }
+
+        for _ in 0..medium_count {
+            workers.push(Worker {
+                id,
                 bias: Priority::Medium,
                 status: WorkerStatus::Idle,
-                registry: Arc::clone(&registry)
-            })));
+                registry: Arc::clone(&registry),
+            });
+            id += 1;
         }
+
+        for _ in 0..low_count {
+            workers.push(Worker {
+                id,
+                bias: Priority::Low,
+                status: WorkerStatus::Idle,
+                registry: Arc::clone(&registry),
+            });
+            id += 1;
+        }
+
         Self { workers, handles: Vec::new(), registry }
     }
 
     pub fn start(&mut self) {
         dotenvy::dotenv().ok();
         let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
+        let workers = std::mem::take(&mut self.workers);
 
-        for worker_arc in &self.workers {
-            let worker = Arc::clone(worker_arc);
-            let bias = worker.lock().unwrap().bias;
+        for mut worker in workers {
+            let bias = worker.bias;
 
             let mut conn = Client::open(redis_url.clone())
                 .unwrap()
@@ -47,9 +99,8 @@ impl WorkerPool {
                 loop {
                     match scheduler.fetch_job(&mut conn, bias) {
                         Ok(Some(job)) => {
-                            let mut w = worker.lock().unwrap();
-                            w.status = WorkerStatus::Busy;
-                            let result= w.process_job(job);
+                            worker.status = WorkerStatus::Busy;
+                            let result = worker.process_job(job);
                             match result {
                                 Ok(job_result) => {
                                     scheduler.push_result(&mut conn, &job_result, &serde_json::to_string(&job_result).unwrap()).unwrap();
@@ -59,12 +110,12 @@ impl WorkerPool {
                                 }
                             }
 
-                            w.status = WorkerStatus::Idle;
+                            worker.status = WorkerStatus::Idle;
                             
                         }
                         Ok(None) => {}
                         Err(e) => {
-                            worker.lock().unwrap().status = WorkerStatus::Offline;
+                            worker.status = WorkerStatus::Offline;
                             eprintln!("Worker error: {}", e);
                             break;
                         }
