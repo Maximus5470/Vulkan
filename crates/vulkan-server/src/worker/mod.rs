@@ -14,6 +14,7 @@ pub enum WorkerStatus{
 pub struct WorkerPool{
     pub workers: Vec<Arc<Mutex<Worker>>>,
     pub handles: Vec<thread::JoinHandle<()>>,
+    #[allow(dead_code)]
     pub registry: Arc<RuntimeRegistry>
 }
 

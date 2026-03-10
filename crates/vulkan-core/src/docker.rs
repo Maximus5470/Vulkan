@@ -6,8 +6,11 @@ use std::{
     io::Write,
     path::PathBuf,
     process::{Command, Stdio},
+    time::Duration,
     time::Instant,
 };
+
+use wait_timeout::ChildExt;
 
 use crate::{
     Job, JobResult, JobStatus, LanguageConfig, RuntimeRegistry, TestcaseResult, dockerfile_content::generic_dockerfile_content
@@ -163,14 +166,54 @@ fn normalize_output(output: &str) -> String {
     output.replace("\r\n", "\n").trim().to_string()
 }
 
+const EXEC_TIMEOUT_SECS: u64 = 10;
+const CONTAINER_MEMORY_LIMIT: &str = "256m";
+const CONTAINER_PIDS_LIMIT: &str = "64";
+const CONTAINER_CPU_LIMIT: &str = "1.0";
+const CONTAINER_NOFILE_LIMIT: &str = "256:256";
+const CONTAINER_NPROC_LIMIT: &str = "64:64";
+const CONTAINER_CPU_TIME_LIMIT: &str = "10:10";
+
 fn create_container(
     image: &str,
     workspace: &PathBuf,
     container_name: &str,
 ) -> Result<String, Box<dyn Error>> {
+    let volume_mapping = format!("{}:/app", workspace.display());
+
     let output = Command::new("docker")
-        .args(["run", "-d", "--name", container_name, "-v", &format!("{}:/app", workspace.display()),
-            "-w", "/app", image, "sleep", "infinity",
+        .args([
+            "run",
+            "-d",
+            "--name",
+            container_name,
+            "--network",
+            "none",
+            "--pids-limit",
+            CONTAINER_PIDS_LIMIT,
+            "--memory",
+            CONTAINER_MEMORY_LIMIT,
+            "--memory-swap",
+            CONTAINER_MEMORY_LIMIT,
+            "--cpus",
+            CONTAINER_CPU_LIMIT,
+            "--ulimit",
+            &format!("nofile={}", CONTAINER_NOFILE_LIMIT),
+            "--ulimit",
+            &format!("nproc={}", CONTAINER_NPROC_LIMIT),
+            "--ulimit",
+            &format!("cpu={}", CONTAINER_CPU_TIME_LIMIT),
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "-v",
+            &volume_mapping,
+            "-w",
+            "/app",
+            image,
+            "sleep",
+            "infinity",
         ])
         .output()?;
 
@@ -190,33 +233,36 @@ fn exec_in_container(
     stdin_input: Option<&str>,
 ) -> Result<(i32, String, String), Box<dyn Error>> {
     let mut command = Command::new("docker");
-    command.args(["exec", "-i", container_id])
-        .args(cmd);
+    command.args(["exec", "-i", container_id]).args(cmd);
+    command.stdin(Stdio::piped());
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
+
+    let mut child = command.spawn()?;
 
     if let Some(input) = stdin_input {
-        command.stdin(Stdio::piped());
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
-
-        let mut child = command.spawn()?;
-
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(input.as_bytes());
         }
-
-        let output = child.wait_with_output()?;
-        let exit_code = output.status.code().unwrap_or(-1);
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-
-        Ok((exit_code, stdout, stderr))
     } else {
-        let output = command.output()?;
-        let exit_code = output.status.code().unwrap_or(-1);
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        let _ = child.stdin.take();
+    }
 
-        Ok((exit_code, stdout, stderr))
+    let timeout = Duration::from_secs(EXEC_TIMEOUT_SECS);
+    match child.wait_timeout(timeout)? {
+        Some(_status) => {
+            let output = child.wait_with_output()?;
+            let exit_code = output.status.code().unwrap_or(-1);
+            let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+            let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+            Ok((exit_code, stdout, stderr))
+        }
+        None => {
+            let _ = child.kill();
+            let _ = child.wait();
+            destroy_container(container_id);
+            Err(format!("Execution timed out after {} seconds", EXEC_TIMEOUT_SECS).into())
+        }
     }
 }
 
