@@ -92,10 +92,15 @@ impl Mlfq {
         let job_json = serde_json::to_string(job).map_err(|e| {
             RedisError::from((ErrorKind::Server(ServerErrorKind::ResponseError), "Failed to serialize job", e.to_string()))
         })?;
+
+        // Push to queue first (with rate limiting check via Lua script)
+        self.push_job_with_priority(conn, &job_id, priority)?;
+
+        // Only add to JOBS_HASH if rate limit check passed
         conn
             .hset::<_, _, _, ()>(JOBS_HASH, &job_id, &job_json)?;
 
-        self.push_job_with_priority(conn, &job_id, priority)
+        Ok(1)
     }
 
     pub fn fetch_job(&self, conn: &mut Connection, bias: Priority) -> RedisResult<Option<Job>> {
