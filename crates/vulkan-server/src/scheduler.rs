@@ -60,18 +60,20 @@ impl Mlfq {
         }
     }
     #[allow(dead_code)]
-    fn push_job_with_priority(&self, conn: &mut Connection, job_id: &str, priority: Priority) -> RedisResult<i64> {
+    fn push_job_with_priority(&self, conn: &mut Connection, job_id: &str, job_json: &str, priority: Priority) -> RedisResult<i64> {
         let script = Script::new(include_str!("scheduler_push.lua"));
 
         let result = script
             .key(HIGH_QUEUE)
             .key(MEDIUM_QUEUE)
             .key(LOW_QUEUE)
+            .key(JOBS_HASH)
             .arg(self.high_limit)
             .arg(self.medium_limit)
             .arg(self.low_limit)
             .arg(job_id)
             .arg(format!("{:?}", priority))
+            .arg(job_json)
             .invoke(conn)?;
 
         if result == 0 {
@@ -93,14 +95,8 @@ impl Mlfq {
             RedisError::from((ErrorKind::Server(ServerErrorKind::ResponseError), "Failed to serialize job", e.to_string()))
         })?;
 
-        // Push to queue first (with rate limiting check via Lua script)
-        self.push_job_with_priority(conn, &job_id, priority)?;
-
-        // Only add to JOBS_HASH if rate limit check passed
-        conn
-            .hset::<_, _, _, ()>(JOBS_HASH, &job_id, &job_json)?;
-
-        Ok(1)
+        // Atomically validate rate limits, push to queue, and store job data via Lua script
+        self.push_job_with_priority(conn, &job_id, &job_json, priority)
     }
 
     pub fn fetch_job(&self, conn: &mut Connection, bias: Priority) -> RedisResult<Option<Job>> {
@@ -118,15 +114,27 @@ impl Mlfq {
             .query(conn)?;
 
         if let Some((_, job_id)) = result {
-            let job_json: String = conn.hget(JOBS_HASH, &job_id)?;
-            let job: Job = serde_json::from_str(&job_json).map_err(|e| {
-                RedisError::from((
-                    ErrorKind::Server(ServerErrorKind::ResponseError),
-                    "Failed to deserialize job",
-                    e.to_string(),
-                ))
-            })?;
-            return Ok(Some(job));
+            // Handle stale queue entries (orphaned IDs with no matching job data)
+            let job_json: Option<String> = conn.hget(JOBS_HASH, &job_id)?;
+            
+            match job_json {
+                Some(json) => {
+                    let job: Job = serde_json::from_str(&json).map_err(|e| {
+                        RedisError::from((
+                            ErrorKind::Server(ServerErrorKind::ResponseError),
+                            "Failed to deserialize job",
+                            e.to_string(),
+                        ))
+                    })?;
+                    return Ok(Some(job));
+                }
+                None => {
+                    // Dead-letter: Log stale job ID and continue to next job
+                    eprintln!("WARNING: Orphaned job ID in queue (no JOBS_HASH entry): {}. Skipping.", job_id);
+                    // TODO: Optionally push to dead-letter queue for investigation
+                    return Ok(None);
+                }
+            }
         }
 
         Ok(None)
