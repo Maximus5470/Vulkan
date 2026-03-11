@@ -2,7 +2,7 @@ use std::{sync::Arc, time::SystemTime};
 
 use redis::aio::ConnectionManager;
 use vulkan_core::RuntimeRegistry;
-use vulkan_server::Mlfq;
+use vulkan_server::Mlq;
 
 pub mod job;
 pub mod health;
@@ -18,5 +18,5 @@ pub struct AppState{
     pub redis: ConnectionManager,
     pub redis_pool: RedisPool,
     pub runtimes: Arc<RuntimeRegistry>,
-    pub scheduler: Arc<Mlfq>,
+    pub scheduler: Arc<Mlq>,
 }

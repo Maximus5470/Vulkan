@@ -9,7 +9,7 @@ use redis::Client;
 use vulkan_core::{Priority, RuntimeRegistry};
 
 use crate::{
-    scheduler::Mlfq,
+    scheduler::Mlq,
     worker::{Worker, WorkerPool, WorkerStatus},
 };
 
@@ -93,7 +93,7 @@ impl WorkerPool {
                 .unwrap()
                 .get_connection()
                 .unwrap();
-            let scheduler = Mlfq::new();
+            let scheduler = Mlq::new();
 
             let handle = thread::spawn(move || {
                 loop {

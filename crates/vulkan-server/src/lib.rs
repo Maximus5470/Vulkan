@@ -1,2 +1,2 @@
 pub mod scheduler;
-pub use scheduler::Mlfq;
+pub use scheduler::Mlq;

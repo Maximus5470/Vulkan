@@ -5,7 +5,7 @@ use r2d2;
 use redis::{Client, aio::ConnectionManager};
 use tokio::net::TcpListener;
 use vulkan_core::registry::load_registry_from_file;
-use vulkan_server::Mlfq;
+use vulkan_server::Mlq;
 use dotenv;
 
 use crate::handlers::AppState;
@@ -26,7 +26,7 @@ async fn main() {
         redis: ConnectionManager::new(redis_conn).await.expect("Failed to create Redis connection manager"),
         redis_pool,
         runtimes: Arc::new(load_registry_from_file()),
-        scheduler: Arc::new(Mlfq::new()),
+        scheduler: Arc::new(Mlq::new()),
     };
 
     let app = Router::new()

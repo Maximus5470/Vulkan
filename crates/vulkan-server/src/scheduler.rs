@@ -17,15 +17,15 @@ const LOW_QUEUE: &str = "vulkan:queue:low";
 const JOBS_HASH: &str = "vulkan:jobs";
 const RESULTS_HASH: &str = "vulkan:results";
 
-pub struct Mlfq {
+pub struct Mlq {
     pub high_limit: usize,
     pub medium_limit: usize,
     pub low_limit: usize,
 }
 
-impl fmt::Debug for Mlfq {
+impl fmt::Debug for Mlq {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MLFQ")
+        f.debug_struct("MLQ")
             .field("high_limit", &self.high_limit)
             .field("medium_limit", &self.medium_limit)
             .field("low_limit", &self.low_limit)
@@ -33,7 +33,7 @@ impl fmt::Debug for Mlfq {
     }
 }
 
-impl Mlfq {
+impl Mlq {
     pub fn new() -> Self {
         Self {
             high_limit: read_limit("HIGH_QUEUE_LIMIT", DEFAULT_HIGH_LIMIT),
