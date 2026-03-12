@@ -10,6 +10,11 @@ lazy_static! {
         Opts::new("vulkan_queue_length", "Length of the job queues"),
         &["priority"]
     ).unwrap();
+
+    static ref HASHSET_LENGTH: IntGaugeVec = register_int_gauge_vec!(
+        Opts::new("vulkan_jobs_length", "Length of the jobs hashset"),
+        &["set"]
+    ).unwrap();
 }
 
 pub async fn handle(State(state): State<AppState>) -> String {
@@ -22,6 +27,9 @@ pub async fn handle(State(state): State<AppState>) -> String {
     QUEUE_LENGTH.with_label_values(&["high"]).set(high_length);
     QUEUE_LENGTH.with_label_values(&["medium"]).set(medium_length);
     QUEUE_LENGTH.with_label_values(&["low"]).set(low_length);
+
+    let jobs_length: i64 = conn.hlen("vulkan:jobs").await.unwrap_or(0);
+    HASHSET_LENGTH.with_label_values(&["jobs"]).set(jobs_length);
 
     let encoder = TextEncoder::new();
     let metric_families = prometheus::gather();

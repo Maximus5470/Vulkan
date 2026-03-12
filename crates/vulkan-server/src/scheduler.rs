@@ -126,6 +126,7 @@ impl Mlq {
                             e.to_string(),
                         ))
                     })?;
+                    conn.hdel::<_, _, ()>(JOBS_HASH, &job_id)?;
                     return Ok(Some(job));
                 }
                 None => {
