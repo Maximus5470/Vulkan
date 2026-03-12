@@ -2,7 +2,7 @@ use dotenvy;
 use std::{
     env,
     sync::Arc,
-    thread,
+    thread, time::Duration,
 };
 
 use redis::Client;
@@ -117,7 +117,7 @@ impl WorkerPool {
                         Err(e) => {
                             worker.status = WorkerStatus::Offline;
                             eprintln!("Worker error: {}", e);
-                            break;
+                            thread::sleep(Duration::from_millis(10));
                         }
                     }
                 }
