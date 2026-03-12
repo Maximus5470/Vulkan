@@ -113,10 +113,16 @@ impl WorkerPool {
                             worker.status = WorkerStatus::Idle;
                             
                         }
-                        Ok(None) => {}
+                        Ok(None) => {
+                            eprint!("Worker {}: skipped v orphaned job entry", worker.id);
+                        }
                         Err(e) => {
                             worker.status = WorkerStatus::Offline;
-                            eprintln!("Worker error: {}", e);
+                            if e.is_connection_dropped() || e.is_connection_refusal() {
+                                eprintln!("Worker {} lost Redis connection, shutting down: {}", worker.id, e);
+                                break;
+                            }
+                            eprintln!("Worker {} error: {}", worker.id, e);
                             thread::sleep(Duration::from_millis(10));
                         }
                     }
